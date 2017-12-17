@@ -8,41 +8,45 @@ import java.util.concurrent.*;
  */
 
 public class Apriori{
-	private static long timer;
-	private static int MIN_SUPPORT;
-	private static List<List<Integer>> buffer = new ArrayList<>();
-	private static List<Map<String, Candidate>> list = new ArrayList<>();
-	private static Map<String, Candidate> singleItem = new ConcurrentHashMap<>();
-	private static Map<String, Candidate> twoItem = new ConcurrentHashMap<>();
-	private static Map<String, Candidate> threeItem = new ConcurrentHashMap<>();
+	private int k;
+	private String inputFile;
+	private String outputFile;
+	private List<List<Integer>> FIM;
+	private List<Integer> fim_count;
+	
+	private long timer;
+	private int MIN_SUPPORT;
+	private List<List<Integer>> buffer = new ArrayList<>();
+	private List<Map<String, Candidate>> list = new ArrayList<>();
+	private Map<String, Candidate> singleItem = new ConcurrentHashMap<>();
+	private Map<String, Candidate> twoItem = new ConcurrentHashMap<>();
+	private Map<String, Candidate> threeItem = new ConcurrentHashMap<>();
 
+	
 	/**
-	 * call the Apriori Algorithm and calculate time
-	 * @param args
+	 * Constructor, intialize the parameters
+	 * @param inputFile Database
+	 * @param outputFile 
+	 * @param k
 	 */
-	public static void main(String[] args) {
-		if(args.length != 3)
-			System.out.println("Usage: java Apriori [input] [int-minimum support] [output]");
+	public Apriori(String inputFile, int k, List<List<Integer>> FIM, List<Integer> fim_count) {
+		this.inputFile = inputFile;
+		this.k = k;
+		this.FIM = FIM;
+		this.fim_count = fim_count;
+	}
+	
+	
+	public void run() {
+		MIN_SUPPORT = k;
 
-		String inputFile = args[0];
-		String outputFile = args[2];
-		MIN_SUPPORT = Integer.parseInt(args[1]);
-		
 		try{
-			PrintStream terminal = System.out;
-			PrintStream redirect = new PrintStream(new FileOutputStream(outputFile));
-			System.setOut(redirect);
-			timer = new Date().getTime();
 			AprioriPruning(inputFile);
-			System.setOut(terminal);
-			System.out.printf("t = %f seconds", (new Date().getTime()-timer) / 1000.0);
-			outputHandler(outputFile, terminal);
 		}
-		catch(Exception ex) {
+		catch(IOException ex) {
 			System.err.println("File not found");
 			System.exit(1);
 		}
-
 	}
 
 	/**
@@ -51,7 +55,7 @@ public class Apriori{
 	 * @param inputFile
 	 * @throws Exception
 	 */
-	public static void AprioriPruning(String inputFile) throws Exception{
+	public void AprioriPruning(String inputFile) throws IOException{
 		BufferedReader br = new BufferedReader(new FileReader(inputFile));
 		String line;
 		while((line = br.readLine()) != null) {
@@ -78,60 +82,11 @@ public class Apriori{
 	}
 
 	/**
-	 * soring the output based on the sample output format
-	 * @param inputFile
-	 * @param terminal
-	 * @throws Exception
-	 */
-	public static void outputHandler(String inputFile, PrintStream terminal) throws Exception {
-		BufferedReader br = new BufferedReader(new FileReader(inputFile));
-		List<String> outputBuffer = new ArrayList<String>();
-
-		String line;
-		while((line = br.readLine()) != null)
-			outputBuffer.add(line);
-
-		sortOutput(outputBuffer);
-
-		PrintStream redirect = new PrintStream(new FileOutputStream(inputFile));
-		System.setOut(redirect);
-		for(int i = 0; i < outputBuffer.size(); i++) {
-			System.out.println(outputBuffer.get(i));
-		}
-		System.setOut(terminal);
-	}
-
-	/**
-	 * sorter, read each single item and compare
-	 * @param outputBuffer
-	 * @throws Exception
-	 */
-	public static void sortOutput(List<String> outputBuffer) throws Exception{
-		Collections.sort(outputBuffer, new Comparator<String>() {
-			@Override
-			public int compare(String s1, String s2) {
-				List<Integer> list1 = parseLine(s1);
-				List<Integer> list2 = parseLine(s2);
-				int m = 0, n = 0;
-				while(m < list1.size() || n < list2.size()) {
-					int val1 = m < list1.size() ? list1.get(m) : 0;
-					int val2 = n < list2.size() ? list2.get(n) : 0;
-					if(val1 != val2)
-						return val1 - val2;
-					m++;
-					n++;
-				}
-				return 0;
-			}
-		});
-	}
-
-	/**
 	 * parse the unordered output entry and ignore the support count
 	 * @param line
 	 * @return list containing all numbers in each entry
 	 */
-	public static List<Integer> parseLine(String line) {
+	public List<Integer> parseLine(String line) {
 		line = line.trim().substring(0, line.lastIndexOf(" "));
 		List<Integer> list = new ArrayList<Integer>();
 		for(String s : line.split(" "))
@@ -143,7 +98,7 @@ public class Apriori{
 	 * test for minimum support using buffer cache
 	 * @param nextSet
 	 */
-	public static void testMinSupport(Map<String, Candidate> nextSet) {
+	public void testMinSupport(Map<String, Candidate> nextSet) {
 		for(List<Integer> entry : buffer) {
 			Set<Integer> set = new HashSet<Integer>();
 			for(Integer n : entry)
@@ -165,14 +120,16 @@ public class Apriori{
 	 * @param map
 	 * @return map containing supported candidate itemset
 	 */
-	public static Map<String, Candidate> clean(Map<String, Candidate> map) {
+	public Map<String, Candidate> clean(Map<String, Candidate> map) {
 		for(Map.Entry<String, Candidate> e : map.entrySet() ) {
 			if(e.getValue().support < MIN_SUPPORT)
 				map.remove(e.getKey());
 			else {
+				List<Integer> FIM_entry = new ArrayList<Integer>();
 				for(int i : e.getValue().set)
-					System.out.printf("%d ",i);
-				System.out.printf("(%d)\n",e.getValue().support);
+					FIM_entry.add(i);
+				FIM.add(FIM_entry);
+				fim_count.add(e.getValue().support);
 			}
 		}
 		return map;
@@ -183,7 +140,7 @@ public class Apriori{
 	 * @param lastSet
 	 * @return map containing all candidate itemset
 	 */
-	public static Map<String,Candidate> getCandidateSet(Map<String, Candidate> lastSet) {
+	public Map<String,Candidate> getCandidateSet(Map<String, Candidate> lastSet) {
 		ConcurrentHashMap<String, Candidate> nextSet = new ConcurrentHashMap<>();
 		boolean valid;
 		for(Candidate c1 : lastSet.values()) {
@@ -228,7 +185,7 @@ public class Apriori{
 	 * @param item
 	 * @return
 	 */
-	public static List<List<Integer>> getSubsets(int[] item) {
+	public List<List<Integer>> getSubsets(int[] item) {
 		List<List<Integer>> list = new ArrayList<List<Integer>>();
 		getSubsetHelper(list, new ArrayList<>(), item, item.length - 1,0);
 		return list;
@@ -242,7 +199,7 @@ public class Apriori{
 	 * @param length
 	 * @param start
 	 */
-	public static void getSubsetHelper(List<List<Integer>> list, List<Integer> temp, int[] item, int length, int start) {
+	public void getSubsetHelper(List<List<Integer>> list, List<Integer> temp, int[] item, int length, int start) {
 		if(temp.size() == length)	list.add(new ArrayList<Integer>(temp));
 		else {
 			for(int i = start; i < item.length; i++) {
@@ -258,7 +215,7 @@ public class Apriori{
 	 * @param map
 	 * @param set
 	 */
-	public static void buildMap(Map<String, Candidate> map, int[] set) {
+	public void buildMap(Map<String, Candidate> map, int[] set) {
 		String key = Arrays.toString(set);
 		if(!map.containsKey(key))
 			map.put(key, new Candidate(1, set));
@@ -270,7 +227,7 @@ public class Apriori{
 	 * generate one-item set
 	 * @param temp
 	 */
-	public static void getOneSet(List<Integer> temp) {
+	public void getOneSet(List<Integer> temp) {
 		for(int i = 0; i < temp.size(); i++)
 			buildMap(singleItem, new int[]{temp.get(i)});
 	}
@@ -279,7 +236,7 @@ public class Apriori{
 	 * generate two-item set
 	 * @param temp
 	 */
-	public static void getTwoSet(List<Integer> temp) {
+	public void getTwoSet(List<Integer> temp) {
 		for(int i = 0; i < temp.size() - 1; i++) {
 			for(int j = i+1; j < temp.size(); j++) {
 				buildMap(twoItem, new int[]{temp.get(i), temp.get(j)});
@@ -291,7 +248,7 @@ public class Apriori{
 	 * generate three-item set
 	 * @param temp
 	 */
-	public static void getThreeSet(List<Integer> temp) {
+	public void getThreeSet(List<Integer> temp) {
 		int[] arr = temp.stream().mapToInt(x -> x).toArray();
 		threeSetHelper(new ArrayList<>(), arr, 3, 0);
 	}
@@ -303,7 +260,7 @@ public class Apriori{
 	 * @param length
 	 * @param start
 	 */
-	public static void threeSetHelper(List<Integer> temp, int[] item, int length, int start) {
+	public void threeSetHelper(List<Integer> temp, int[] item, int length, int start) {
 		if(temp.size() == length)	buildMap(threeItem, temp.stream().mapToInt(x->x).toArray());
 		else {
 			for(int i = start; i < item.length; i++) {
