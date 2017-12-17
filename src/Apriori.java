@@ -4,7 +4,6 @@ import java.util.concurrent.*;
 
 /**
  * 	Author Wenxuan Wang
- * 	Date 2/12/2017
  */
 
 public class Apriori{
